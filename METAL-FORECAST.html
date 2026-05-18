@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metal Stock Forecast Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0e11;
+    --surface: #14161b;
+    --surface2: #1c1f27;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf0;
+    --muted: #6b7080;
+    --accent: #4fffb0;
+    --accent-dim: rgba(79,255,176,0.10);
+    --accent-glow: rgba(79,255,176,0.22);
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  header { padding: 1.75rem 2.5rem 1.4rem; border-bottom: 1px solid var(--border); display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-mark { width: 36px; height: 36px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .logo-text h1 { font-family: var(--font-head); font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+  .logo-text p { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+  .header-pills { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pill { padding: 4px 10px; border-radius: 99px; background: var(--surface2); border: 1px solid var(--border2); font-size: 0.7rem; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .pill.active { background: var(--accent-dim); border-color: var(--accent-glow); color: var(--accent); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; flex-shrink: 0; }
+
+  /* ── Main ── */
+  main { flex: 1; padding: 2rem 2.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+
+  /* ── Drop zone ── */
+  .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 2.5rem 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; background: var(--surface); user-select: none; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+  .drop-zone.drag-over .drop-icon { transform: scale(1.1) translateY(-5px); }
+  .drop-icon { width: 48px; height: 48px; margin: 0 auto 0.9rem; transition: transform 0.22s; opacity: 0.55; display: block; }
+  .drop-title { font-family: var(--font-head); font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+  .drop-sub { font-size: 0.75rem; color: var(--muted); line-height: 1.7; }
+  .browse-btn { display: inline-block; margin-top: 1rem; padding: 7px 18px; border-radius: 8px; background: transparent; border: 1px solid var(--border2); color: var(--text); font-family: var(--font-mono); font-size: 0.78rem; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+  .browse-btn:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  #fileInput { display: none; }
+
+  /* ── Metrics ── */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.9rem 1.1rem; }
+  .metric-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 5px; }
+  .metric-val { font-family: var(--font-head); font-size: 1.6rem; font-weight: 700; color: var(--accent); line-height: 1; }
+  .metric-sub { font-size: 0.67rem; color: var(--muted); margin-top: 4px; }
+
+  /* ── Table toolbar ── */
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 0.65rem; }
+  .table-title { font-family: var(--font-head); font-size: 0.85rem; font-weight: 700; color: var(--text); }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .range-tag { font-size: 0.7rem; color: var(--muted); }
+
+  /* ── Tab switcher ── */
+  .tab-bar { display: flex; gap: 2px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .tab-btn { padding: 5px 14px; border-radius: 6px; border: none; background: transparent; color: var(--muted); font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+  .tab-btn.active { background: var(--surface); color: var(--text); border: 1px solid var(--border2); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  /* ── PDF button ── */
+  .pdf-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; background: transparent; border: 1px solid var(--border2); color: var(--text); font-family: var(--font-mono); font-size: 0.75rem; cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; white-space: nowrap; }
+  .pdf-btn:hover { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .pdf-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  /* ── Table ── */
+  .scroll-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+  thead th { padding: 9px 13px; text-align: right; font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface); position: sticky; top: 0; z-index: 1; }
+  thead th:first-child { text-align: left; min-width: 90px; }
+  thead th.th-desc { text-align: left; min-width: 130px; max-width: 150px; width: 150px; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 8px 13px; white-space: nowrap; text-align: right; color: var(--muted); }
+  tbody td:first-child { text-align: left; font-weight: 500; font-size: 0.79rem; color: var(--text); letter-spacing: 0.03em; }
+  tbody td.td-desc { text-align: left; color: var(--muted); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; width: 150px; }
+  td.has-val { color: var(--text); font-weight: 500; }
+  td.high-val { color: var(--accent); font-weight: 500; }
+  td.row-total { font-weight: 500; color: var(--accent); border-left: 1px solid var(--border); background: rgba(79,255,176,0.04); }
+  tfoot tr td { padding: 9px 13px; font-size: 0.7rem; text-align: right; border-top: 1px solid var(--border2); background: var(--surface2); color: var(--muted); font-weight: 500; }
+  tfoot tr td:first-child { text-align: left; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  tfoot .grand { color: var(--accent); }
+
+  /* ── Footer ── */
+  footer { padding: 1.1rem 2.5rem; border-top: 1px solid var(--border); font-size: 0.7rem; color: var(--muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .codes-list { font-size: 0.63rem; opacity: 0.55; }
+
+  .hidden { display: none !important; }
+  .fade-in { animation: fadeIn 0.35s ease both; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+  /* ── Print / PDF styles ── */
+  @media print {
+    @page { size: landscape; margin: 0.6cm 0.9cm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    html, body { background: #fff !important; color: #1a1a1a !important; font-family: Arial, sans-serif; font-size: 13px; margin: 0 !important; padding: 0 !important; }
+    /* Force everything white — kills the dark app background */
+    body * { background: transparent; }
+    header, footer, .drop-zone, .metrics, .table-toolbar, .tab-bar, .pdf-btn, #dropZone, #metricsRow { display: none !important; }
+    .scroll-wrap { border: none !important; overflow: visible !important; box-shadow: none !important; background: #fff !important; }
+    #tableSection { display: block !important; page-break-inside: avoid; }
+    main { padding: 0 !important; background: #fff !important; }
+
+    /* ---- Print header ---- */
+    .print-header { display: block !important; margin-bottom: 8px; }
+    .ph-top { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 8px; border-bottom: 3px solid #1a4e8a; margin-bottom: 6px; }
+    .ph-brand { display: flex; align-items: center; gap: 10px; }
+    .ph-logo { width: 36px; height: 36px; background: #1a4e8a; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ph-logo svg { width: 20px; height: 20px; }
+    .ph-title h1 { font-family: 'Georgia', serif; font-size: 20px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.3px; line-height: 1.1; }
+    .ph-title p { font-family: Arial, sans-serif; font-size: 9px; color: #777; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+    .ph-meta-box { text-align: right; }
+    .ph-meta-box .ph-date { font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px; }
+    .ph-meta-box .ph-ref { font-family: Arial, sans-serif; font-size: 9px; color: #888; }
+    .ph-stats { display: flex; gap: 22px; padding: 4px 0 2px; }
+    .ph-stat { border-left: 3px solid #1a4e8a; padding-left: 8px; }
+    .ph-stat-label { font-family: Arial, sans-serif; font-size: 8px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; margin-bottom: 1px; }
+    .ph-stat-val { font-family: 'Georgia', serif; font-size: 15px; font-weight: 700; color: #1a1a1a; line-height: 1; }
+
+    /* ---- Table — tighter rows to fit 14 on one page ---- */
+    .scroll-wrap { overflow: visible !important; background: #fff !important; }
+    table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 13.5px; table-layout: auto; }
+
+    thead th {
+      background: #1a4e8a !important;
+      color: #fff !important;
+      padding: 12px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: right;
+      border: none;
+      white-space: nowrap;
+    }
+    thead th:first-child, thead th.th-desc { text-align: left; }
+    thead th:last-child { width: 48px; min-width: 48px; max-width: 48px; padding-left: 6px; padding-right: 6px; }
+    thead th.th-desc { min-width: 190px; max-width: 210px; width: 210px; }
+
+    tbody tr:nth-child(even) td { background: #edf3fb !important; }
+    tbody tr:nth-child(odd) td { background: #fff !important; }
+    tbody td {
+      padding: 12px 9px;
+      color: #1a1a1a !important;
+      text-align: right;
+      font-size: 13.5px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    tbody td:first-child {
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      text-align: left;
+      letter-spacing: 0.03em;
+    }
+    tbody td.td-desc {
+      color: #444 !important;
+      text-align: left;
+      font-style: italic;
+      font-weight: 400;
+      white-space: nowrap;
+      font-size: 13px;
+      min-width: 190px;
+      max-width: 210px;
+      width: 210px;
+    }
+    tbody td:last-child { width: 48px; min-width: 48px; max-width: 48px; padding-left: 6px; padding-right: 6px; }
+    td.high-val { color: #1a1a1a !important; font-weight: 700 !important; }
+    td.has-val { color: #1a1a1a !important; font-weight: 700 !important; }
+    td.row-total {
+      background: #d6e6f7 !important;
+      color: #1a1a1a !important;
+      font-weight: 700 !important;
+      border-left: 3px solid #1a4e8a !important;
+    }
+    tfoot { display: none !important; }
+
+    /* ---- Print footer ---- */
+    .print-footer-bar {
+      display: flex !important;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid #cddaea;
+      justify-content: space-between;
+      font-family: Arial, sans-serif;
+      font-size: 8px;
+      color: #aaa;
+    }
+  }
+  .print-header { display: none; }
+  .print-footer-bar { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="10" width="3" height="6" rx="1" fill="#0d0e11"/>
+        <rect x="7" y="6" width="3" height="10" rx="1" fill="#0d0e11"/>
+        <rect x="12" y="2" width="3" height="14" rx="1" fill="#0d0e11"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <h1>Metal Stock Forecast</h1>
+      <p>Shipping Dashboard</p>
+    </div>
+  </div>
+  <div class="header-pills">
+    <div class="pill" id="statusPill"><span class="dot"></span> No file loaded</div>
+    <div class="pill hidden" id="datePill"></div>
+  </div>
+</header>
+
+<main>
+
+  <div class="drop-zone" id="dropZone">
+    <svg class="drop-icon" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="6" width="40" height="40" rx="8" stroke="#4fffb0" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <path d="M26 34V18M26 18L20 24M26 18L32 24" stroke="#4fffb0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="drop-title">Drop your CSV file here</div>
+    <div class="drop-sub">Shipping Forecast CSV export from your system<br>All target item codes are detected automatically</div>
+    <button class="browse-btn" id="browseBtn">Browse file</button>
+    <input type="file" id="fileInput" accept=".csv">
+  </div>
+
+  <div class="metrics hidden" id="metricsRow">
+    <div class="metric"><div class="metric-label">Codes tracked</div><div class="metric-val" id="mCodes">-</div><div class="metric-sub">of 14 target codes</div></div>
+    <div class="metric"><div class="metric-label">Days in range</div><div class="metric-val" id="mDays">-</div><div class="metric-sub" id="mDaySub"></div></div>
+    <div class="metric"><div class="metric-label">Total units</div><div class="metric-val" id="mUnits">-</div><div class="metric-sub">across all items</div></div>
+    <div class="metric"><div class="metric-label">Busiest day</div><div class="metric-val" id="mBusyDate">-</div><div class="metric-sub" id="mBusyVal"></div></div>
+  </div>
+
+  <div class="hidden" id="tableSection">
+    <!-- Print header (only visible when printing) -->
+    <div class="print-header" id="printHeader">
+      <div class="ph-top">
+        <div class="ph-brand">
+          <div class="ph-logo">
+            <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="11" width="4" height="7" rx="1" fill="#4fffb0"/>
+              <rect x="8" y="7" width="4" height="11" rx="1" fill="#4fffb0"/>
+              <rect x="14" y="3" width="4" height="15" rx="1" fill="#4fffb0"/>
+            </svg>
+          </div>
+          <div class="ph-title">
+            <h1>Metal Stock Forecast</h1>
+            <p>Shipping &amp; Inventory Report</p>
+          </div>
+        </div>
+        <div class="ph-meta-box">
+          <div class="ph-date" id="printDate"></div>
+          <div class="ph-ref" id="printRef"></div>
+        </div>
+      </div>
+      <div class="ph-stats">
+        <div class="ph-stat"><div class="ph-stat-label">Date Range</div><div class="ph-stat-val" id="phRange">-</div></div>
+        <div class="ph-stat"><div class="ph-stat-label">Item Codes</div><div class="ph-stat-val" id="phCodes">-</div></div>
+        <div class="ph-stat"><div class="ph-stat-label">Total Units</div><div class="ph-stat-val" id="phUnits">-</div></div>
+        <div class="ph-stat"><div class="ph-stat-label">Days Covered</div><div class="ph-stat-val" id="phDays">-</div></div>
+      </div>
+    </div>
+    <div class="print-footer-bar" id="printFooterBar">
+      <span>Metal Stock Forecast &mdash; Confidential</span>
+      <span id="printFooterMeta"></span>
+    </div>
+
+    <div class="table-toolbar">
+      <div class="table-title">Units by Item Code &amp; Date</div>
+      <div class="toolbar-right">
+        <div class="range-tag" id="rangeTag"></div>
+        <div class="tab-bar">
+          <button class="tab-btn active" id="tabCode" onclick="switchTab('code')">Code</button>
+          <button class="tab-btn" id="tabDesc" onclick="switchTab('desc')">Description</button>
+          <button class="tab-btn" id="tabBoth" onclick="switchTab('both')">Both</button>
+        </div>
+        <button class="pdf-btn" id="pdfBtn" onclick="printPDF()">
+          <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 10v2a1 1 0 001 1h8a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M7 1v7M4.5 5.5L7 8l2.5-2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Export PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="scroll-wrap">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot id="tableFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span>Metal Stock Forecast Dashboard &mdash; drag &amp; drop to reload</span>
+  <span class="codes-list" id="codesList"></span>
+</footer>
+
+<script>
+const TARGET_CODES = ['CLGF44','CLGF45','CLGF54','CLGF55','CLGF64','CLGF65','CLGF44-BK','CLGF45-BK','CLGF54-BK','CLGF55-BK','CLGF64-BK','CLGF65-BK','RB65','40-1503'];
+
+// Descriptions for all 14 metal codes
+const CODE_DESC = {
+  'CLGF44':    'Resi 4\'x44" Galv Frame Only',
+  'CLGF45':    'Resi 4\'x56" Galv Frame Only',
+  'CLGF54':    'Resi 5\'x44" Galv Frame Only',
+  'CLGF55':    'Resi 5\'x56" Galv Frame Only',
+  'CLGF64':    'Resi 6\'x44" Galv Frame Only',
+  'CLGF65':    'Resi 6\'x56" Galv Frame Only',
+  'CLGF44-BK': 'Resi 4\'x44" Black Frame Only',
+  'CLGF45-BK': 'Resi 4\'x56" Black Frame Only',
+  'CLGF54-BK': 'Resi 5\'x44" Black Frame Only',
+  'CLGF55-BK': 'Resi 5\'x56" Black Frame Only',
+  'CLGF64-BK': 'Resi 6\'x44" Black Frame Only',
+  'CLGF65-BK': 'Resi 6\'x56" Black Frame Only',
+  'RB65':      'Rebar 3/4" x 6\'-6"',
+  '40-1503':   'SS40 - 1 5/8"x3\' Galv'
+};
+
+document.getElementById('codesList').textContent = TARGET_CODES.join(' · ');
+
+let currentTab = 'code';
+let globalData = null;
+
+function escapeRx(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// Alias map: CLG variants whose qty should be added to the CLGF target code
+const CODE_ALIASES = {
+  'CLGF44':    ['CLG44'],
+  'CLGF45':    ['CLG45'],
+  'CLGF54':    ['CLG54'],
+  'CLGF55':    ['CLG55'],
+  'CLGF64':    ['CLG64'],
+  'CLGF65':    ['CLG65'],
+  'CLGF44-BK': ['CLG44-BK'],
+  'CLGF45-BK': ['CLG45-BK'],
+  'CLGF54-BK': ['CLG54-BK'],
+  'CLGF55-BK': ['CLG55-BK'],
+  'CLGF64-BK': ['CLG64-BK'],
+  'CLGF65-BK': ['CLG65-BK'],
+};
+
+function parseFile(arrayBuffer) {
+  const bytes = new Uint8Array(arrayBuffer);
+  const decoder = new TextDecoder('utf-8');
+  const records = [];
+  let start = 0;
+  for (let i = 0; i < bytes.length - 1; i++) {
+    if (bytes[i] === 0x0d && bytes[i + 1] === 0x0a) {
+      records.push(decoder.decode(bytes.slice(start, i)));
+      i++;
+      start = i + 1;
+    }
+  }
+  if (start < bytes.length) records.push(decoder.decode(bytes.slice(start)));
+
+  const results = {};
+  const dateSet = new Set();
+
+  // Build a flat lookup: every code we want to scan -> which target code to credit
+  const scanMap = {}; // scanCode -> targetCode
+  for (const target of TARGET_CODES) {
+    scanMap[target] = target;
+    if (CODE_ALIASES[target]) {
+      for (const alias of CODE_ALIASES[target]) {
+        scanMap[alias] = target;
+      }
+    }
+  }
+
+  for (const rec of records) {
+    const text = rec.replace(/"/g, '').replace(/\n/g, '');
+    if (!text.trim()) continue;
+
+    for (const [scanCode, targetCode] of Object.entries(scanMap)) {
+      const grandRx = new RegExp('Grand Total For:,' + escapeRx(scanCode) + ',([\\d.]+)', 'i');
+      const gm = text.match(grandRx);
+      if (!gm) continue;
+      const qty = parseFloat(gm[1]);
+      if (isNaN(qty) || qty === 0) continue;
+      const dateRx = new RegExp('(\\d{1,2}/\\d{1,2}/\\d{4}),' + escapeRx(scanCode) + ',', 'i');
+      const dm = text.match(dateRx);
+      if (!dm) continue;
+      const shipDate = dm[1];
+      if (!results[targetCode]) results[targetCode] = {};
+      // Add to existing qty (combines CLGF + CLG)
+      results[targetCode][shipDate] = (results[targetCode][shipDate] || 0) + qty;
+      dateSet.add(shipDate);
+    }
+  }
+
+  const dates = [...dateSet].sort((a, b) => new Date(a) - new Date(b));
+  return { results, dates };
+}
+
+function fmtDate(d) {
+  const p = d.split('/');
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(p[0])-1] + ' ' + parseInt(p[1]);
+}
+function fmtNum(n) { return Math.round(n).toLocaleString(); }
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  if (globalData) buildTable(globalData.codes, globalData.dates, globalData.results, globalData.maxVal, globalData.dailyTotals, globalData.totalUnits);
+}
+
+function buildTable(codes, dates, results, maxVal, dailyTotals, totalUnits) {
+  const showCode = currentTab === 'code' || currentTab === 'both';
+  const showDesc = currentTab === 'desc' || currentTab === 'both';
+
+  // Head
+  let headHTML = '<tr>';
+  if (showCode) headHTML += '<th>Code</th>';
+  if (showDesc) headHTML += '<th class="th-desc">Description</th>';
+  dates.forEach(d => { headHTML += '<th>' + fmtDate(d) + '</th>'; });
+  headHTML += '<th>Total</th></tr>';
+  document.getElementById('tableHead').innerHTML = headHTML;
+
+  // Body
+  let bodyHTML = '';
+  codes.forEach(code => {
+    let rowTotal = 0;
+    let cells = '';
+    dates.forEach(d => {
+      const v = (results[code] && results[code][d]) || 0;
+      rowTotal += v;
+      if (v === 0) cells += '<td>-</td>';
+      else if (v >= maxVal * 0.55) cells += '<td class="high-val">' + fmtNum(v) + '</td>';
+      else cells += '<td class="has-val">' + fmtNum(v) + '</td>';
+    });
+    bodyHTML += '<tr>';
+    if (showCode) bodyHTML += '<td>' + code + '</td>';
+    if (showDesc) bodyHTML += '<td class="td-desc">' + (CODE_DESC[code] || '-') + '</td>';
+    bodyHTML += cells + '<td class="row-total">' + fmtNum(rowTotal) + '</td></tr>';
+  });
+  document.getElementById('tableBody').innerHTML = bodyHTML;
+
+  // Foot
+  let footHTML = '<tr><td colspan="' + (showCode && showDesc ? 2 : 1) + '">' + (showCode && showDesc ? 'Day total' : 'Day total') + '</td>';
+  dates.forEach(d => { footHTML += '<td>' + fmtNum(dailyTotals[d]) + '</td>'; });
+  footHTML += '<td class="grand">' + fmtNum(totalUnits) + '</td></tr>';
+  document.getElementById('tableFoot').innerHTML = footHTML;
+}
+
+function render(results, dates) {
+  // Always show all 14 codes — use TARGET_CODES directly, results[code] may be undefined (no data)
+  const codes = TARGET_CODES;
+  const foundCodes = TARGET_CODES.filter(c => results[c]);
+  if (!foundCodes.length) {
+    alert('No target item codes found in this file.\nMake sure you are uploading the correct Shipping Forecast CSV.');
+    document.getElementById('statusPill').innerHTML = '<span class="dot"></span> No codes found';
+    return;
+  }
+
+  let totalUnits = 0;
+  const dailyTotals = {};
+  dates.forEach(d => { dailyTotals[d] = 0; });
+  codes.forEach(code => dates.forEach(d => {
+    const v = (results[code] && results[code][d]) || 0;
+    totalUnits += v;
+    dailyTotals[d] += v;
+  }));
+
+  const busyDay = dates.reduce((a, b) => dailyTotals[a] >= dailyTotals[b] ? a : b, dates[0]);
+  const maxVal = Math.max(...codes.flatMap(c => dates.map(d => (results[c] && results[c][d]) || 0)));
+
+  globalData = { codes, dates, results, maxVal, dailyTotals, totalUnits };
+
+  // Metrics
+  document.getElementById('mCodes').textContent = foundCodes.length;
+  document.getElementById('mDays').textContent = dates.length;
+  document.getElementById('mDaySub').textContent = fmtDate(dates[0]) + ' - ' + fmtDate(dates[dates.length-1]);
+  document.getElementById('mUnits').textContent = fmtNum(totalUnits);
+  document.getElementById('mBusyDate').textContent = fmtDate(busyDay);
+  document.getElementById('mBusyVal').textContent = fmtNum(dailyTotals[busyDay]) + ' units';
+  document.getElementById('rangeTag').textContent = fmtDate(dates[0]) + ' - ' + fmtDate(dates[dates.length-1]);
+
+  // Pills
+  const sp = document.getElementById('statusPill');
+  sp.innerHTML = '<span class="dot"></span> ' + codes.length + ' codes loaded';
+  sp.className = 'pill active';
+  const dp = document.getElementById('datePill');
+  dp.textContent = fmtDate(dates[0]) + ' - ' + fmtDate(dates[dates.length-1]);
+  dp.classList.remove('hidden');
+
+  // Print meta
+  const now = new Date();
+  document.getElementById('printDate').textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('printRef').textContent = 'Ref: WSF-' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  document.getElementById('phRange').textContent = fmtDate(dates[0]) + ' - ' + fmtDate(dates[dates.length-1]);
+  document.getElementById('phCodes').textContent = codes.length;
+  document.getElementById('phUnits').textContent = fmtNum(totalUnits);
+  document.getElementById('phDays').textContent = dates.length;
+  document.getElementById('printFooterMeta').textContent = 'Generated ' + now.toLocaleString() + '  |  ' + codes.length + ' item codes  |  ' + fmtNum(totalUnits) + ' total units';
+
+  buildTable(codes, dates, results, maxVal, dailyTotals, totalUnits);
+
+  ['metricsRow','tableSection'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('hidden');
+    void el.offsetWidth;
+    el.classList.add('fade-in');
+  });
+}
+
+function printPDF() {
+  const prevTab = currentTab;
+  if (currentTab !== 'both') switchTab('both');
+  document.getElementById('printHeader').style.display = 'block';
+  document.getElementById('printFooterBar').style.display = 'flex';
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      document.getElementById('printHeader').style.display = '';
+      document.getElementById('printFooterBar').style.display = '';
+      if (prevTab !== 'both') switchTab(prevTab);
+    }, 600);
+  }, 120);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.csv')) { alert('Please upload a .csv file.'); return; }
+  const sp = document.getElementById('statusPill');
+  sp.innerHTML = '<span class="dot"></span> Reading...';
+  sp.className = 'pill active';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const { results, dates } = parseFile(e.target.result);
+      render(results, dates);
+    } catch(err) {
+      alert('Error reading file: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Events
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); e.stopPropagation();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+dropZone.addEventListener('click', e => { if (!e.target.closest('#browseBtn')) document.getElementById('fileInput').click(); });
+document.getElementById('browseBtn').addEventListener('click', e => { e.stopPropagation(); document.getElementById('fileInput').click(); });
+document.getElementById('fileInput').addEventListener('change', e => { if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]); });
+</script>
+</body>
+</html>
